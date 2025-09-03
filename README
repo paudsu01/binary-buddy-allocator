@@ -42,7 +42,7 @@ Now that we have walked through the design principles, let us lay a framework fo
         * Return the one necessary.
 * Freeing:
     1. Compute the buddy's address to see if the buddy is unused.
-        * If the block starts at address $a$ and is of size 2<sup>$K$</sup>, the buddy's address = a ⊕ 2<sup>$K$</sup>[^1].
+        * If the block starts at address $a$ and is of size 2<sup>$K$</sup>, the buddy's address = a ⊕ 2<sup>$K$</sup>. [Why](#finding-the-buddy)?
     Alternatively, the block could have stored the buddy's address in its header information. However, this would only have been a waste of space since it is very easy to compute the address.
     2. If the buddy is free(i.e in a free list), then remove the buddy from the freelist. This is why we chose a doubly linked list. Merge them into a block of size 2<sup>$K+1$</sup>
     3. Repeat until no merge is possible(i.e a buddy is in use) or we reach the maximum block size.
@@ -70,7 +70,12 @@ There we go. Now that we have a good overview of the binary buddy allocator, loo
 
 Binary buddy allocator still suffers from internal fragmentation. However, it makes coalescing much easier which is necessary for any allocator. Moreover, it is just a smart idea. I like it.
 
+### Finding the buddy
+Let us assume a block of size 2<sup>$k$</sup> starts at address $a$. Now, I will try to give you an idea(not a full proof) as to why:
+\[ \text{Buddy's address} = a ⊕ 2^{K} \]
 
-[^1]: <b>Finding the Buddy is easy!</b>
-// @todo
-Normally, this is where citations go, but I am going to use this to prove ...
+The XOR operation works because the address of each buddy pair only differs on the $K$<sup>th</sup> bit. So, performing XOR will make sure only the $K$<sup>th</sup> bit is flipped. But why does the address for each buddy pair only differ on the $K$<sup>th</sup> bit?
+
+If we think closely, we will notice that the address of a block of size 2<sup>$K$</sup> is always at $C \cdot 2^K$ where $C \in \mathbb{Z+}$. One way to prove this is by proof of induction. I will leave that for the reader.
+
+Now, the buddy on the "left" will have the same address as its parent that it split from. Let the address of the parent be $C \cdot 2^{K+1}$. This means that the $K^{th}$ bit of this address will be a zero. Now, what about the other buddy? The buddy's address will be $C \cdot 2^{K+1} + 2^{k}$. This means that now the $K^{th}$ bit will be a 1. This shows that only the $K^{th}$ bit is different in the addresses of a buddy pair.
