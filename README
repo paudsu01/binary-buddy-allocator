@@ -1,0 +1,23 @@
+# Binary buddy allocator
+This README is more of a walkthrough of how the binary buddy algorithm was designed, as to understand its core principles! Moreover, the implemetation code is well documented to help understand recursive splitting and coalescing in a binary buddy allocator.
+
+## Design ideas
+The main goal of any kind of buddy allocator is to minimize external fragementation. Normally, if we implement a basic free list, it will handle variable sized chunks of memory and no matter what kind of implementation we choose(first fit, best fit, worst fit etc), we will have the problem of external fragmentation. Some designs will minimize the problem, but it will still exist.
+
+### Model one: Fixed sized blocks
+The way to solve this problem of external fragmentation would be with the use of a free list that manages fixed size blocks of memory. This is what the idea of `paging` essentially is. However, for managing the heap of a process, we have two problems: ask for bigger size, allocation fails and ask for smaller size, we waste memory(internal fragmentation).
+
+
+### Model two: Multiple free lists
+So now, another idea is that instead of just having fixed sized units, why don't we instead have multiple free lists to manage various fixed-size blocks of memory. For example, one free list will only block of size 512 bytes memory, and then the other free list will only manage 1024 bytes sized blocks. This can help minimize internal fragmentation.
+
+We now have two things to consider:
+1. #### How should be perform splitting?
+    For example, if we have a request for 500 bytes, and we are out of fixed size 512 bytes, what should be do? Let's say, we have a block of 1024 bytes available. It would be ideal if we can split this 1024 bytes block into two blocks of 512 bytes each and return one to the user and add the other one to its appropriate free list? However, this would only make sense if there is some way to merge it(coalesce) back once the user frees the block.
+
+2. #### So, how should we perform coalescing?
+    Ideally, we always want to have big continous chunks of memory as that gives us flexibility for allocation. From the previous example, given that we split a block into two "buddies", one was returned to the user and one was added back to its free list. However, when the user frees the block, it makes sense that we combine this block with its buddy if it is not in use and have the parent block in its free list.
+
+// TODO
+Few questions now: How should we know which has buddy or not?
+We can also keep doing this recursively. 
