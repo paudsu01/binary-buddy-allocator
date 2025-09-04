@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-// Any memory chunk returned to the user via `malloc` will contain this information as a header
 typedef struct{
   size_t size;
   bool free;
