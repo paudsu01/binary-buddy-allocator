@@ -13,6 +13,11 @@ buddy.o: buddy.c buddy.h utils.h types.h
 utils.o: utils.c utils.h
 	$(CC) $(CFLAGS) -c utils.c
 
+test: $(TARGET) test.c
+	gcc -lmem1 -L. -o test test.c -Wall -Werror
+	./test
+	rm test
+
 clean:
 	rm -f $(OBJS) $(TARGET)
 
