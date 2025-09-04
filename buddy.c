@@ -11,22 +11,26 @@
 // 2^20 = 1 MB ~ 1,048,576 Bytes maximum possible allocation
 // This is also the total size of the memory we are handling for this implementation.
 #define MAX_ALLOCATION 20
+#define MIN(a,b) (size_t) a < (size_t) b ? (size_t) a : (size_t) b
 
 // Note: Every free list is a doubly linked list.
 // index for free list of size `2^k` is given by (MAX_ALLOCATION - k)
 // For example, the free list that holds chunks of 512KB would be in index (MAX_ALLOCATION - 19) i.e in this case index `1`.
 // Note: we won't have 20 free lists. We will have `20 - round_log(sizeof(node))` many free lists.
-node* free_lists[20] = {NULL};
-bool init = false;
+static node* free_lists[20] = {NULL};
+static void* starting_address;
+static bool init = false;
 
-// Function prototypes
-void update_header(node* buddy, int power);
+/* Helper Function prototypes */
+void reset_node(node* buddy, int power);
 void* update_header_and_return_pointer(node* node);
 void add_chunk(node* buddy_one, int power);
 void* request_chunk(int power);
+void remove_node(node* buddy_two);
+void coalesce(node* buddy_one, size_t power);
 
 void* malloc(size_t size){
-  printf("MALLOC\n");
+  if (size < 1) return NULL;
   // Once a block is free, we need at least the sizeof(node) to be able to
   // store it in its freelist(if we cannot coalesce it with its buddy).
   if ((size + sizeof(header)) < sizeof(node)) size = sizeof(node) - sizeof(header);
@@ -42,8 +46,9 @@ void* malloc(size_t size){
     // Initially, we think of our free space as just one chunk of size 2^k, where k in this case = 20.
     node* node = mmap(NULL, (size_t) pow(2, MAX_ALLOCATION), PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
     if (node == MAP_FAILED) return NULL;
+    starting_address = (void*) node;
     free_lists[0] = node;
-    update_header(node, 20);
+    reset_node(node, 20);
     init = true;
   }
 
@@ -56,10 +61,53 @@ void* malloc(size_t size){
 }
 
 void free(void* pointer){
-  //@todo
+  if (!pointer) return;
+
+  // get access to the header
+  header* header_info = ((header *)pointer - 1);
+  if (!header_info) return;
+
+  header_info->free = true;
+  size_t power = header_info->size;
+
+  // Recursive function
+  coalesce((void*)header_info, power);
 }
 
 /* Helper functions */
+
+void coalesce(node* buddy_one, size_t power){
+  if (power == MAX_ALLOCATION){
+    free_lists[0] = buddy_one;
+    return;
+  }
+
+  // Find the buddy's block address
+  size_t offset = ((char *)buddy_one - (char* )starting_address);
+  // flip the power_th bit.
+  size_t buddy_offset = offset ^ (1 << power);
+  header* buddy_two = (header*) ((char*)starting_address + buddy_offset);
+
+  // Check if buddy is free
+  // If not, add `buddy_one` to its appropriate freelist
+  if (!buddy_two->free){
+    // reset node and header information
+    reset_node((node*) buddy_one, power);
+    add_chunk(buddy_one, power);
+  } else{
+    // Remove the other buddy from its free list since we want to combine these buddies together!
+    remove_node((node*) buddy_two);
+
+    // Combine the buddies together. Find the smaller address between them which should be the address of the parent
+    size_t min_offset = MIN(offset, buddy_offset);
+    node* parent = (node*) ((char*)starting_address + min_offset);
+    reset_node(parent, power + 1);
+
+    // Now, we want to perform recursive merging
+    // We want to keep merging these buddies if we can!
+    coalesce(parent, power+1);
+  }
+}
 
 /*
   * recursive function:
@@ -93,11 +141,12 @@ void* request_chunk(int power){
     // Split the chunk into two
     node* buddy_one = bigger_chunk;
     // Calculate the address of the buddy using addr XOR 2^k, where k is the size of the block
-    node* buddy_two = (node* ) (((char *)buddy_one)+ (size_t) pow(2,power));
+    node* buddy_two = (node*) (((char *)buddy_one)+ (size_t) pow(2,power));
 
-    // Update the header information like size etc.
-    update_header(buddy_one, power);
-    update_header(buddy_two, power);
+    // Reset the node information 
+    reset_node(buddy_one, power);
+    reset_node(buddy_two, power);
+
     // add one of the buddies to the freelist
     add_chunk(buddy_two, power);
     return buddy_one;
@@ -105,7 +154,10 @@ void* request_chunk(int power){
 }
 
 
-// Insert chunk at the front for its appropriate freelist
+/* Insert chunk at the front for its appropriate freelist
+ * The freelist is determined by the `power`. A power of `x` means a freelist that is
+ * storing chunks of size 2^x
+ */
 void add_chunk(node* buddy, int power){
     if (buddy == NULL) return;
 
@@ -120,7 +172,21 @@ void add_chunk(node* buddy, int power){
     }
 }
 
-void update_header(node* buddy, int power){
+// Remove a node from its freelist
+void remove_node(node* n){
+  node* prev = n->previous;
+
+  if (prev == NULL){
+    free_lists[MAX_ALLOCATION - n->header.size] = n->next;
+  } else{
+    prev->next = n->next;
+  }
+
+  if (n->next != NULL) n->next->previous = prev;
+}
+
+/* Reset the node information */
+void reset_node(node* buddy, int power){
   if (buddy == NULL) return;
 
   buddy->next = NULL;
