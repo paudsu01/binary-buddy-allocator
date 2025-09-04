@@ -1,10 +1,18 @@
 CC=gcc
-target: buddy.o
-	gcc -shared -o libmem1.so buddy.o
+CFLAGS=-g -Wall -Werror -fpic
 
-buddy.o: buddy.c buddy.h
-	$(CC) -c -fpic buddy.c -Wall -Werror
+TARGET=libmem1.so
+OBJS=buddy.o utils.o
+
+$(TARGET): $(OBJS)
+	$(CC) -shared -o $@ $(OBJS)
+
+buddy.o: buddy.c buddy.h utils.h types.h
+	$(CC) $(CFLAGS) -c buddy.c
+
+utils.o: utils.c utils.h
+	$(CC) $(CFLAGS) -c utils.c
 
 clean:
-	rm *.o
-	rm *.so
+	rm -f $(OBJS) $(TARGET)
+
